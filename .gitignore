@@ -1,0 +1,15 @@
+# Backend specific
+Backend/node_modules/
+Backend/.env
+Backend/.env.*
+Backend/logs/
+Backend/*.log
+
+# Global patterns
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
