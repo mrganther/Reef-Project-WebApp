@@ -14,12 +14,82 @@ const http = require("http");
 const WebSocket = require("ws");
 const mqtt = require("mqtt");
 const path = require("path");
-
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files
+// Add middleware for parsing JSON
+app.use(express.json());
+
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
+// API endpoint to fetch the latest message from TTN Storage
+app.get("/api/latest-message", async (req, res) => {
+  console.log("API endpoint /api/latest-message hit!");
+
+  try {
+    // Clean the application ID - remove @ttn suffix for API calls
+    const cleanAppId = TTN_CONFIG.applicationId.replace("@ttn", "");
+    const storageUrl = `https://${TTN_CONFIG.region}.cloud.thethings.network/api/v3/as/applications/${cleanAppId}/packages/storage/uplink_message`;
+
+    console.log(`Fetching latest message from: ${storageUrl}`);
+
+    // Create URL with proper query parameters for TTN Storage API
+    const url = new URL(storageUrl);
+    url.searchParams.append("limit", "1");
+    url.searchParams.append("order", "-received_at");
+
+    const response = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${TTN_CONFIG.apiKey}`,
+        Accept: "application/json",
+      },
+    });
+
+    console.log(`TTN API Response status: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(
+        `TTN Storage API error: ${response.status} ${response.statusText}`
+      );
+      console.error(`Error response body:`, errorText);
+      return res.status(500).json({
+        error: `TTN API error: ${response.status} ${response.statusText}`,
+        details: errorText,
+      });
+    }
+
+    // Parse JSON response
+    const data = await response.json();
+    console.log("TTN Storage API response received");
+
+    // TTN Storage API returns an object with a "result" property containing the message
+    if (data.result) {
+      console.log("Found latest message in storage");
+      res.json(data.result);
+    } else {
+      console.log("No messages found in storage - this could mean:");
+      console.log("1. Storage Integration is not enabled for this application");
+      console.log("2. No messages have been stored yet");
+      console.log("3. Messages have expired (check retention period)");
+      res.json(null);
+    }
+  } catch (error) {
+    console.error("Error fetching latest message:", error);
+    res.status(500).json({
+      error: "Failed to fetch latest message",
+      details: error.message,
+    });
+  }
+});
+
+// Serve static files (after API routes)
 app.use(express.static(path.join(__dirname, "public")));
 
 // Function to establish MQTT connection

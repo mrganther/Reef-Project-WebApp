@@ -61,37 +61,6 @@ const SensorGauge = ({ value, title, unit, min, max, color, subArcs }) => (
   </div>
 );
 
-// depreciated
-const LatestValues = ({ latestData }) => (
-  <div className="bg-white p-6 rounded-lg shadow-md">
-    <h3 className="text-lg font-semibold mb-4 text-gray-800">Latest Reading</h3>
-    {latestData ? (
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="text-center p-4 bg-blue-50 rounded-lg">
-          <div className="text-3xl font-bold text-blue-600">
-            {latestData.payload.Temp?.toFixed(1) || "0.0"}°C
-          </div>
-          <div className="text-sm text-gray-600">Temperature</div>
-        </div>
-        <div className="text-center p-4 bg-green-50 rounded-lg">
-          <div className="text-3xl font-bold text-green-600">
-            {latestData.payload.Humidity?.toFixed(1) || "0.0"}%
-          </div>
-          <div className="text-sm text-gray-600">Humidity</div>
-        </div>
-        <div className="text-center p-4 bg-red-50 rounded-lg">
-          <div className="text-3xl font-bold text-red-600">
-            {latestData.payload.Pressure?.toFixed(1) || "0.0"}hPa
-          </div>
-          <div className="text-sm text-gray-600">Pressure</div>
-        </div>
-      </div>
-    ) : (
-      <div className="text-center text-gray-500 py-8">No data received yet</div>
-    )}
-  </div>
-);
-
 const MessageHistory = ({ messages }) => (
   <div className="bg-white p-6 rounded-lg shadow-md">
     <h2 className="text-xl font-semibold mb-4 text-gray-800">
@@ -126,7 +95,7 @@ const MessageHistory = ({ messages }) => (
                 </span>
               </div>
               <div className="text-gray-500 text-xs md:col-span-2">
-                Local time: {msg.timestamp}
+                Local time: {msg.timestamp} {msg.isHistorical && "(Historical)"}
               </div>
             </div>
           </div>
@@ -136,11 +105,62 @@ const MessageHistory = ({ messages }) => (
   </div>
 );
 
+// Function to transform TTN message to our format
+const transformTTNMessage = (ttnMessage, isHistorical = false) => {
+  return {
+    timestamp: new Date().toLocaleString(),
+    receivedAt: new Date(ttnMessage.received_at).toLocaleTimeString(),
+    deviceId: ttnMessage.end_device_ids?.device_id || "unknown",
+    payload: ttnMessage.uplink_message?.decoded_payload || {},
+    data: ttnMessage,
+    isHistorical: isHistorical,
+  };
+};
+
 const useWebSocket = () => {
   const [ws, setWs] = useState(null);
   const [isConnected, setIsConnected] = useState(false);
   const [messages, setMessages] = useState([]);
   const [connectionAttempts, setConnectionAttempts] = useState(0);
+  const [isLoadingHistorical, setIsLoadingHistorical] = useState(true);
+
+  // Fetch the latest message from TTN Storage API
+  const fetchLatestMessage = useCallback(async () => {
+    try {
+      console.log("Fetching latest message from server...");
+      const response = await fetch("/api/latest-message");
+
+      console.log("Response status:", response.status);
+      console.log(
+        "Response headers:",
+        Object.fromEntries(response.headers.entries())
+      );
+
+      if (response.ok) {
+        const latestMessage = await response.json();
+
+        console.log("Raw latest message from server:", latestMessage);
+
+        if (latestMessage) {
+          console.log("Latest message fetched:", latestMessage);
+          const transformedMessage = transformTTNMessage(latestMessage, true);
+          console.log("Transformed message:", transformedMessage);
+
+          setMessages([transformedMessage]);
+        } else {
+          console.log("No historical messages found");
+        }
+      } else {
+        console.error("Failed to fetch latest message:", response.status);
+        const errorText = await response.text();
+        console.error("Error response body:", errorText);
+      }
+    } catch (error) {
+      console.error("Error fetching latest message:", error);
+    } finally {
+      setIsLoadingHistorical(false);
+    }
+  }, []);
 
   const connectWebSocket = useCallback(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -170,15 +190,9 @@ const useWebSocket = () => {
         }
 
         if (data.type === "message" && data.payload) {
-          console.log("Received sensor data:", data.payload);
+          console.log("Received real-time sensor data:", data.payload);
 
-          const newMessage = {
-            timestamp: new Date().toLocaleString(),
-            receivedAt: new Date(data.payload.received_at).toLocaleTimeString(),
-            deviceId: data.payload.end_device_ids?.device_id || "unknown",
-            payload: data.payload.uplink_message?.decoded_payload || {},
-            data: data.payload,
-          };
+          const newMessage = transformTTNMessage(data.payload, false);
 
           setMessages((prev) => {
             const updated = [newMessage, ...prev];
@@ -210,7 +224,11 @@ const useWebSocket = () => {
   }, [connectionAttempts]);
 
   useEffect(() => {
-    connectWebSocket();
+    // First fetch the latest message, then connect WebSocket
+    fetchLatestMessage().then(() => {
+      connectWebSocket();
+    });
+
     return () => {
       if (ws) {
         ws.close();
@@ -218,12 +236,12 @@ const useWebSocket = () => {
     };
   }, []);
 
-  return { isConnected, messages };
+  return { isConnected, messages, isLoadingHistorical };
 };
 
 // Main Dashboard Component
 const SensorDashboard = () => {
-  const { isConnected, messages } = useWebSocket();
+  const { isConnected, messages, isLoadingHistorical } = useWebSocket();
   const [latestData, setLatestData] = useState(null);
 
   // Get latest sensor values
@@ -327,7 +345,14 @@ const SensorDashboard = () => {
             deviceName="Reef Device 01"
           />
 
-          {!latestData && (
+          {isLoadingHistorical && (
+            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
+              <div className="text-6xl mb-4">🔄</div>
+              <p className="text-lg">Loading latest sensor data...</p>
+            </div>
+          )}
+
+          {!isLoadingHistorical && !latestData && (
             <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
               <div className="text-6xl mb-4">📡</div>
               <p className="text-lg">Waiting for sensor data...</p>
