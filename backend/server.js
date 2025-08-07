@@ -7,6 +7,8 @@ const TTN_CONFIG = {
   applicationId: process.env.TTN_APP_ID,
   apiKey: process.env.TTN_API_KEY,
   deviceId: process.env.TTN_DEVICE_ID || "",
+  weatherStationDeviceId: process.env.TTN_DEVICE_WS_ID,
+  buoyDeviceID: process.env.TTN_DEVICE_BUOY_ID,
 };
 
 const express = require("express");

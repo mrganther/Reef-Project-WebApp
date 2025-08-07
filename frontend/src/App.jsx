@@ -3,16 +3,22 @@ import GaugeComponent from "react-gauge-component";
 
 const MAX_MESSAGES = 50;
 
-const StatusIndicator = ({ isConnected, deviceName }) => (
-  <div className="flex items-center mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
+const StatusIndicator = ({ isConnected, ttnName }) => (
+  <div className="flex items-center justify-center mb-6 p-4">
     <div
       className={`w-3 h-3 rounded-full mr-3 transition-colors duration-300 ${
         isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
       }`}
     />
     <span className="font-semibold text-gray-700">
-      {isConnected ? `Connected to ${deviceName}` : "Disconnected"}
+      {isConnected ? `Connected to ${ttnName}` : "Disconnected"}
     </span>
+  </div>
+);
+
+const DeviceHeaderLabel = ({ deviceName }) => (
+  <div className="justify-center mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
+    <span>{`${deviceName}`}</span>
   </div>
 );
 
@@ -328,7 +334,7 @@ const SensorDashboard = () => {
     <div>
       <div className="min-h-screen bg-gradient-to-br from-green-50 flex flex-col to-indigo-100 p-4">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8">
+          <div className="text-center mb-2">
             <h2 className="text-2xl font-bold text-gray-800 mb-1">
               Port Philip Bay
             </h2>
@@ -340,10 +346,7 @@ const SensorDashboard = () => {
             </p>
           </div>
 
-          <StatusIndicator
-            isConnected={isConnected}
-            deviceName="Reef Device 01"
-          />
+          <StatusIndicator isConnected={isConnected} ttnName="Reef Device 01" />
 
           {isLoadingHistorical && (
             <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
@@ -362,7 +365,9 @@ const SensorDashboard = () => {
             </div>
           )}
 
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <DeviceHeaderLabel deviceName="Reef Buoy 1" />
+
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
             <SensorGauge
               value={latestData?.payload?.Temp ?? 0}
               title="Buoy Temperature"
@@ -398,6 +403,29 @@ const SensorDashboard = () => {
               title="TDS"
               unit="ppm"
               {...tdsConfig}
+            />
+          </div>
+
+          <DeviceHeaderLabel deviceName="Weather Station" />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+            <SensorGauge
+              value={latestData?.payload?.Temp ?? 0}
+              title="Temperature"
+              unit="°C"
+              {...buoyTemperatureConfig}
+            />
+            <SensorGauge
+              value={latestData?.payload?.Humidity ?? 0}
+              title="Humidity"
+              unit="%"
+              {...humidityConfig}
+            />
+            <SensorGauge
+              value={latestData?.payload?.Pressure ?? 0}
+              title="Atmospheric Pressure"
+              unit="hPa"
+              {...pressureConfig}
             />
           </div>
 
