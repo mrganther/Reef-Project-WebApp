@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import GaugeComponent from "react-gauge-component";
+import DarkModeToggle from "./DarkModeToggle";
 
 const MAX_MESSAGES = 50;
 
@@ -16,9 +17,14 @@ const StatusIndicator = ({ isConnected, ttnName }) => (
   </div>
 );
 
-const DeviceHeaderLabel = ({ deviceName }) => (
+const DeviceHeaderLabel = ({ deviceDisplayName, lastUpdate }) => (
   <div className="justify-center mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
-    <span>{`${deviceName}`}</span>
+    <div className="flex justify-between items-center">
+      <span className="text-lg font-semibold">{deviceDisplayName}</span>
+      {lastUpdate && (
+        <span className="text-sm text-gray-500">Last update: {lastUpdate}</span>
+      )}
+    </div>
   </div>
 );
 
@@ -130,11 +136,11 @@ const useWebSocket = () => {
   const [connectionAttempts, setConnectionAttempts] = useState(0);
   const [isLoadingHistorical, setIsLoadingHistorical] = useState(true);
 
-  // Fetch the latest message from TTN Storage API
-  const fetchLatestMessage = useCallback(async () => {
+  // Fetch the latest messages from both devices
+  const fetchLatestMessages = useCallback(async () => {
     try {
-      console.log("Fetching latest message from server...");
-      const response = await fetch("/api/latest-message");
+      console.log("Fetching latest messages from server...");
+      const response = await fetch("/api/latest-messages");
 
       console.log("Response status:", response.status);
       console.log(
@@ -143,26 +149,25 @@ const useWebSocket = () => {
       );
 
       if (response.ok) {
-        const latestMessage = await response.json();
+        const latestMessages = await response.json();
+        console.log("Raw latest messages from server:", latestMessages);
 
-        console.log("Raw latest message from server:", latestMessage);
-
-        if (latestMessage) {
-          console.log("Latest message fetched:", latestMessage);
-          const transformedMessage = transformTTNMessage(latestMessage, true);
-          console.log("Transformed message:", transformedMessage);
-
-          setMessages([transformedMessage]);
+        if (latestMessages && latestMessages.length > 0) {
+          const transformedMessages = latestMessages.map((msg) =>
+            transformTTNMessage(msg, true)
+          );
+          console.log("Transformed messages:", transformedMessages);
+          setMessages(transformedMessages);
         } else {
           console.log("No historical messages found");
         }
       } else {
-        console.error("Failed to fetch latest message:", response.status);
+        console.error("Failed to fetch latest messages:", response.status);
         const errorText = await response.text();
         console.error("Error response body:", errorText);
       }
     } catch (error) {
-      console.error("Error fetching latest message:", error);
+      console.error("Error fetching latest messages:", error);
     } finally {
       setIsLoadingHistorical(false);
     }
@@ -231,7 +236,7 @@ const useWebSocket = () => {
 
   useEffect(() => {
     // First fetch the latest message, then connect WebSocket
-    fetchLatestMessage().then(() => {
+    fetchLatestMessages().then(() => {
       connectWebSocket();
     });
 
@@ -248,12 +253,43 @@ const useWebSocket = () => {
 // Main Dashboard Component
 const SensorDashboard = () => {
   const { isConnected, messages, isLoadingHistorical } = useWebSocket();
-  const [latestData, setLatestData] = useState(null);
+  const [buoyData, setBuoyData] = useState(null);
+  const [weatherStationData, setWeatherStationData] = useState(null);
 
   // Get latest sensor values
   useEffect(() => {
     if (messages.length > 0) {
-      setLatestData(messages[0]);
+      // Find the latest message from each device
+      const latestBuoyMessage = messages.find(
+        (msg) =>
+          msg.deviceId &&
+          (msg.deviceId.toLowerCase().includes("buoy") ||
+            msg.deviceId.toLowerCase().includes("reef") ||
+            msg.payload.WaterT1 ||
+            msg.payload.WaterT2 ||
+            msg.payload.TDS)
+      );
+
+      const latestWeatherMessage = messages.find(
+        (msg) =>
+          msg.deviceId &&
+          (msg.deviceId.toLowerCase().includes("weather") ||
+            msg.deviceId.toLowerCase().includes("station") ||
+            (!msg.payload.WaterT1 &&
+              !msg.payload.WaterT2 &&
+              !msg.payload.TDS &&
+              (msg.payload.Temp ||
+                msg.payload.Humidity ||
+                msg.payload.Pressure)))
+      );
+
+      if (latestBuoyMessage) {
+        setBuoyData(latestBuoyMessage);
+      }
+
+      if (latestWeatherMessage) {
+        setWeatherStationData(latestWeatherMessage);
+      }
     }
   }, [messages]);
 
@@ -332,22 +368,20 @@ const SensorDashboard = () => {
 
   return (
     <div>
-      <div className="min-h-screen bg-gradient-to-br from-green-50 flex flex-col to-indigo-100 p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 flex flex-col to-yellow-50 p-4 pb-16">
+        <div className="text-center mb-2">
+          <h2 className="text-2xl font-bold text-gray-800 mb-1">
+            Port Philip Bay
+          </h2>
+          <h1 className="text-5xl font-bold text-gray-800 mb-3">
+            Reef Monitoring Dashboard
+          </h1>
+          <p className="text-gray-600">
+            Real-time environmental sensor data from TTN
+          </p>
+          <StatusIndicator isConnected={isConnected} ttnName="TTN Network" />
+        </div>
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-2">
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">
-              Port Philip Bay
-            </h2>
-            <h1 className="text-5xl font-bold text-gray-800 mb-3">
-              Reef Monitoring Dashboard
-            </h1>
-            <p className="text-gray-600">
-              Real-time environmental sensor data from TTN
-            </p>
-          </div>
-
-          <StatusIndicator isConnected={isConnected} ttnName="Reef Device 01" />
-
           {isLoadingHistorical && (
             <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
               <div className="text-6xl mb-4">🔄</div>
@@ -355,74 +389,82 @@ const SensorDashboard = () => {
             </div>
           )}
 
-          {!isLoadingHistorical && !latestData && (
+          {!isLoadingHistorical && !buoyData && !weatherStationData && (
             <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
               <div className="text-6xl mb-4">📡</div>
               <p className="text-lg">Waiting for sensor data...</p>
               <p className="text-sm mt-2">
-                Make sure your TTN device is sending data
+                Make sure your TTN devices are sending data
               </p>
             </div>
           )}
 
-          <DeviceHeaderLabel deviceName="Reef Buoy 1" />
+          {/* Buoy Section */}
+          <DeviceHeaderLabel
+            deviceDisplayName="Reef Buoy 1"
+            lastUpdate={buoyData?.timestamp}
+          />
 
           <div className="grid grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
             <SensorGauge
-              value={latestData?.payload?.Temp ?? 0}
+              value={buoyData?.payload?.Temp ?? 0}
               title="Buoy Temperature"
               unit="°C"
               {...buoyTemperatureConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.WaterT1 ?? 0}
+              value={buoyData?.payload?.WaterT1 ?? 0}
               title="Water Temperature Surface"
               unit="°C"
               {...surfaceTempConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.WaterT2 ?? 0}
+              value={buoyData?.payload?.WaterT2 ?? 0}
               title="Water Temperature 1.5m deep"
               unit="°C"
               {...temp15mConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.Humidity ?? 0}
+              value={buoyData?.payload?.Humidity ?? 0}
               title="Humidity"
               unit="%"
               {...humidityConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.Pressure ?? 0}
+              value={buoyData?.payload?.Pressure ?? 0}
               title="Atmospheric Pressure"
               unit="hPa"
               {...pressureConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.TDS ?? 0}
+              value={buoyData?.payload?.TDS ?? 0}
               title="TDS"
               unit="ppm"
               {...tdsConfig}
             />
           </div>
 
-          <DeviceHeaderLabel deviceName="Weather Station" />
+          {/* Weather Station Section */}
+          <DeviceHeaderLabel
+            deviceDisplayName="Weather Station"
+            lastUpdate={weatherStationData?.timestamp}
+          />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
             <SensorGauge
-              value={latestData?.payload?.Temp ?? 0}
+              value={weatherStationData?.payload?.Temp ?? 0}
               title="Temperature"
               unit="°C"
               {...buoyTemperatureConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.Humidity ?? 0}
+              value={weatherStationData?.payload?.Humidity ?? 0}
               title="Humidity"
               unit="%"
               {...humidityConfig}
             />
             <SensorGauge
-              value={latestData?.payload?.Pressure ?? 0}
+              value={weatherStationData?.payload?.Pressure ?? 0}
               title="Atmospheric Pressure"
               unit="hPa"
               {...pressureConfig}
@@ -432,10 +474,21 @@ const SensorDashboard = () => {
           <MessageHistory messages={messages} />
         </div>
       </div>
-      <footer className="border border-t-8 border-blue-400 bottom-0 left-0 w-full p-3.5 text-center">
-        <p className="text-sm">
-          Port Philiip Bay - RMIT - Brighton Sea Scouts - 2025
-        </p>
+      <footer className="border-t-8 border-blue-400 w-full p-3.5">
+        <div className="flex items-center justify-center gap-10 flex-wrap">
+          <img src="/images/VicLogoBlue.png" alt="Vic Logo" className="h-16" />
+          <img src="/images/RMITUni.png" alt="RMIT" className="h-16" />
+          <img
+            src="/images/ScoutsVicLogo.png"
+            alt="Scouts Vic"
+            className="h-16"
+          />
+          <img
+            src="/images/BaysideDistrictLogo.png"
+            alt="Bayside"
+            className="h-16"
+          />
+        </div>
       </footer>
     </div>
   );
