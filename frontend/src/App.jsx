@@ -11,26 +11,30 @@ const StatusIndicator = ({ isConnected, ttnName }) => (
         isConnected ? "bg-green-500 animate-pulse" : "bg-red-500"
       }`}
     />
-    <span className="font-semibold text-gray-700">
+    <span className="font-semibold text-gray-700 dark:text-gray-50">
       {isConnected ? `Connected to ${ttnName}` : "Disconnected"}
     </span>
   </div>
 );
 
 const DeviceHeaderLabel = ({ deviceDisplayName, lastUpdate }) => (
-  <div className="justify-center mb-6 p-4 bg-gray-50 rounded-lg shadow-sm">
+  <div className="justify-center mb-6 p-4 bg-gray-50 dark:bg-gray-700 transition-colors duration-300 rounded-lg shadow-sm">
     <div className="flex justify-between items-center">
-      <span className="text-lg font-semibold">{deviceDisplayName}</span>
+      <span className="text-lg font-semibold text-gray-900 dark:text-gray-50 transition-colors duration-300">
+        {deviceDisplayName}
+      </span>
       {lastUpdate && (
-        <span className="text-sm text-gray-500">Last update: {lastUpdate}</span>
+        <span className="text-sm text-gray-500 dark:text-gray-300 transition-colors duration-300">
+          Last update: {lastUpdate}
+        </span>
       )}
     </div>
   </div>
 );
 
 const SensorGauge = ({ value, title, unit, min, max, color, subArcs }) => (
-  <div className="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
-    <h3 className="text-lg font-semibold mb-4 text-center text-gray-800">
+  <div className="bg-white dark:bg-gray-900 transition-colors duration-300 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+    <h3 className="text-lg font-semibold mb-4 text-center dark:text-gray-100 text-gray-800 transition-colors duration-300">
       {title}
     </h3>
     <div className="flex justify-center">
@@ -74,31 +78,39 @@ const SensorGauge = ({ value, title, unit, min, max, color, subArcs }) => (
 );
 
 const MessageHistory = ({ messages }) => (
-  <div className="bg-white p-6 rounded-lg shadow-md">
-    <h2 className="text-xl font-semibold mb-4 text-gray-800">
+  <div className="bg-white dark:bg-gray-900 transition-colors duration-300 p-6 rounded-lg shadow-md">
+    <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200 transition-colors duration-300">
       *DEV* Message History
     </h2>
-    <div className="max-h-80 overflow-y-auto border border-gray-200 rounded-md">
+    <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-gray-800 transition-colors duration-300 rounded-md">
       {messages.length === 0 ? (
-        <div className="p-4 text-gray-500 text-center">
+        <div className="p-4 text-gray-500 dark:text-gray-400 transition-colors duration-300 text-center">
           No messages received yet
         </div>
       ) : (
         messages.map((msg, index) => (
           <div
             key={index}
-            className="p-4 border-b border-gray-100 last:border-b-0 hover:bg-gray-50 transition-colors"
+            className="p-4 border-b border-gray-100 dark: border-gray-850 last:border-b-0 hover:bg-gray-50 transition-colors"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
               <div>
-                <strong>Device:</strong> {msg.deviceId}
+                <strong className="dark:text-gray-50 transition-colors duration-300">
+                  Device:
+                </strong>{" "}
+                {msg.deviceId}
               </div>
               <div>
-                <strong>Received:</strong> {msg.receivedAt}
+                <strong className="dark:text-gray-50 transition-colors duration-300">
+                  Received:
+                </strong>{" "}
+                {msg.receivedAt}
               </div>
               <div className="md:col-span-2">
-                <strong>Data:</strong>
-                <span className="ml-2 font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                <strong className="dark:text-gray-50 transition-colors duration-300">
+                  Data:
+                </strong>
+                <span className="ml-2 font-mono text-xs bg-gray-100 dark:bg-gray-800 transition-colors duration-300 px-2 py-1 rounded">
                   T: {msg.payload.Temp?.toFixed(1)}°C, WT:{" "}
                   {msg.payload.WaterT1?.toFixed(1)}°C, WT2:{" "}
                   {msg.payload.WaterT2?.toFixed(1)}°C, H:{" "}
@@ -106,7 +118,7 @@ const MessageHistory = ({ messages }) => (
                   {msg.payload.Pressure?.toFixed(1)}hPa
                 </span>
               </div>
-              <div className="text-gray-500 text-xs md:col-span-2">
+              <div className="text-gray-500 dark:text-gray-300 transition-colors duration-300 text-xs md:col-span-2">
                 Local time: {msg.timestamp} {msg.isHistorical && "(Historical)"}
               </div>
             </div>
@@ -368,29 +380,32 @@ const SensorDashboard = () => {
 
   return (
     <div>
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 flex flex-col to-yellow-50 p-4 pb-16">
-        <div className="text-center mb-2">
-          <h2 className="text-2xl font-bold text-gray-800 mb-1">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 flex to-yellow-50 dark:from-gray-950 dark:to-blue-950 transition-colors duration-300 flex-col p-4 pb-16">
+        <div className="text-center mb-2 relative">
+          <div className="absolute top-0 right-0 p-2">
+            <DarkModeToggle />
+          </div>
+          <h2 className="text-2xl font-bold dark:text-gray-100 text-gray-800 transition-colors duration-300 mb-1">
             Port Philip Bay
           </h2>
-          <h1 className="text-5xl font-bold text-gray-800 mb-3">
+          <h1 className="text-5xl font-bold dark:text-gray-100 text-gray-800 transition-colors duration-300 mb-3">
             Reef Monitoring Dashboard
           </h1>
-          <p className="text-gray-600">
+          <p className="dark:text-gray-100 text-gray-600 transition-colors duration-300">
             Real-time environmental sensor data from TTN
           </p>
           <StatusIndicator isConnected={isConnected} ttnName="TTN Network" />
         </div>
         <div className="max-w-7xl mx-auto">
           {isLoadingHistorical && (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
+            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8 transition-colors duration-300">
               <div className="text-6xl mb-4">🔄</div>
               <p className="text-lg">Loading latest sensor data...</p>
             </div>
           )}
 
           {!isLoadingHistorical && !buoyData && !weatherStationData && (
-            <div className="bg-white p-8 rounded-lg shadow-md text-center text-gray-500 mb-8">
+            <div className="bg-white dark:bg-black p-8 rounded-lg shadow-md text-center text-gray-500 dark:text-gray-350 mb-8 transition-colors duration-300">
               <div className="text-6xl mb-4">📡</div>
               <p className="text-lg">Waiting for sensor data...</p>
               <p className="text-sm mt-2">
@@ -474,7 +489,7 @@ const SensorDashboard = () => {
           <MessageHistory messages={messages} />
         </div>
       </div>
-      <footer className="border-t-8 border-blue-400 w-full p-3.5">
+      <footer className="border-t-8 border-blue-400 dark:border-gray-950 dark:bg-gray-900 transition-colors duration-300 w-full p-3.5">
         <div className="flex items-center justify-center gap-10 flex-wrap">
           <img src="/images/VicLogoBlue.png" alt="Vic Logo" className="h-16" />
           <img src="/images/RMITUni.png" alt="RMIT" className="h-16" />
