@@ -1,5 +1,3 @@
-// server.js
-
 require("dotenv").config();
 
 const TTN_CONFIG = {
@@ -7,6 +5,8 @@ const TTN_CONFIG = {
   applicationId: process.env.TTN_APP_ID,
   apiKey: process.env.TTN_API_KEY,
   deviceId: process.env.TTN_DEVICE_ID || "",
+  weatherStationDeviceId: process.env.TTN_DEVICE_WS_ID,
+  buoyDeviceID: process.env.TTN_DEVICE_BUOY_ID,
 };
 
 const express = require("express");
@@ -27,16 +27,16 @@ app.use((req, res, next) => {
   next();
 });
 
-// API endpoint to fetch the latest message from TTN Storage
-app.get("/api/latest-message", async (req, res) => {
-  console.log("API endpoint /api/latest-message hit!");
-
+// Helper function to fetch latest message for a specific device
+async function fetchLatestMessageForDevice(deviceId) {
   try {
     // Clean the application ID - remove @ttn suffix for API calls
     const cleanAppId = TTN_CONFIG.applicationId.replace("@ttn", "");
-    const storageUrl = `https://${TTN_CONFIG.region}.cloud.thethings.network/api/v3/as/applications/${cleanAppId}/packages/storage/uplink_message`;
+    const storageUrl = `https://${TTN_CONFIG.region}.cloud.thethings.network/api/v3/as/applications/${cleanAppId}/devices/${deviceId}/packages/storage/uplink_message`;
 
-    console.log(`Fetching latest message from: ${storageUrl}`);
+    console.log(
+      `Fetching latest message for device ${deviceId} from: ${storageUrl}`
+    );
 
     // Create URL with proper query parameters for TTN Storage API
     const url = new URL(storageUrl);
@@ -51,39 +51,127 @@ app.get("/api/latest-message", async (req, res) => {
       },
     });
 
-    console.log(`TTN API Response status: ${response.status}`);
+    console.log(`TTN API Response status for ${deviceId}: ${response.status}`);
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(
-        `TTN Storage API error: ${response.status} ${response.statusText}`
+        `TTN Storage API error for ${deviceId}: ${response.status} ${response.statusText}`
       );
       console.error(`Error response body:`, errorText);
-      return res.status(500).json({
-        error: `TTN API error: ${response.status} ${response.statusText}`,
-        details: errorText,
-      });
+      return null;
     }
 
     // Parse JSON response
     const data = await response.json();
-    console.log("TTN Storage API response received");
+    console.log(`TTN Storage API response received for ${deviceId}`);
 
     // TTN Storage API returns an object with a "result" property containing the message
     if (data.result) {
-      console.log("Found latest message in storage");
-      res.json(data.result);
+      console.log(`Found latest message in storage for ${deviceId}`);
+      return data.result;
     } else {
-      console.log("No messages found in storage - this could mean:");
-      console.log("1. Storage Integration is not enabled for this application");
-      console.log("2. No messages have been stored yet");
-      console.log("3. Messages have expired (check retention period)");
-      res.json(null);
+      console.log(`No messages found in storage for ${deviceId}`);
+      return null;
     }
   } catch (error) {
-    console.error("Error fetching latest message:", error);
+    console.error(
+      `Error fetching latest message for device ${deviceId}:`,
+      error
+    );
+    return null;
+  }
+}
+
+// API endpoint to fetch the latest messages from both devices
+app.get("/api/latest-messages", async (req, res) => {
+  console.log("API endpoint /api/latest-messages hit!");
+
+  try {
+    const messages = [];
+
+    // Fetch from buoy device if configured
+    if (TTN_CONFIG.buoyDeviceID) {
+      console.log(`Fetching from buoy device: ${TTN_CONFIG.buoyDeviceID}`);
+      const buoyMessage = await fetchLatestMessageForDevice(
+        TTN_CONFIG.buoyDeviceID
+      );
+      if (buoyMessage) {
+        console.log(
+          "Buoy message found:",
+          buoyMessage.end_device_ids?.device_id
+        );
+        messages.push(buoyMessage);
+      } else {
+        console.log("No buoy message found");
+      }
+    }
+
+    // Fetch from weather station device if configured
+    if (TTN_CONFIG.weatherStationDeviceId) {
+      console.log(
+        `Fetching from weather station device: ${TTN_CONFIG.weatherStationDeviceId}`
+      );
+      const weatherMessage = await fetchLatestMessageForDevice(
+        TTN_CONFIG.weatherStationDeviceId
+      );
+      if (weatherMessage) {
+        console.log(
+          "Weather station message found:",
+          weatherMessage.end_device_ids?.device_id
+        );
+        messages.push(weatherMessage);
+      } else {
+        console.log("No weather station message found");
+      }
+    }
+
+    // If no specific device IDs are configured, fall back to general application query
+    if (!TTN_CONFIG.buoyDeviceID && !TTN_CONFIG.weatherStationDeviceId) {
+      console.log(
+        "No specific device IDs configured, fetching from application level"
+      );
+
+      const cleanAppId = TTN_CONFIG.applicationId.replace("@ttn", "");
+      const storageUrl = `https://${TTN_CONFIG.region}.cloud.thethings.network/api/v3/as/applications/${cleanAppId}/packages/storage/uplink_message`;
+
+      const url = new URL(storageUrl);
+      url.searchParams.append("limit", "10"); // Get more messages to potentially find both devices
+      url.searchParams.append("order", "-received_at");
+
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${TTN_CONFIG.apiKey}`,
+          Accept: "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Application-level response:", data);
+
+        if (data.result) {
+          // Handle both single message and array of messages
+          const allMessages = Array.isArray(data.result)
+            ? data.result
+            : [data.result];
+          messages.push(...allMessages);
+          console.log(
+            `Found ${allMessages.length} messages from application query`
+          );
+        }
+      } else {
+        console.error("Application-level query failed:", response.status);
+      }
+    }
+
+    console.log(`Returning ${messages.length} total messages`);
+    res.json(messages);
+  } catch (error) {
+    console.error("Error fetching latest messages:", error);
     res.status(500).json({
-      error: "Failed to fetch latest message",
+      error: "Failed to fetch latest messages",
       details: error.message,
     });
   }
@@ -107,11 +195,8 @@ function connectToTTN() {
   mqttClient.on("connect", () => {
     console.log("Connected to TTN MQTT broker");
 
-    // Create topic based on deviceId if provided
-    let topic = `v3/${TTN_CONFIG.applicationId}/devices/+/up`;
-    if (TTN_CONFIG.deviceId) {
-      topic = `v3/${TTN_CONFIG.applicationId}/devices/${TTN_CONFIG.deviceId}/up`;
-    }
+    // Subscribe to all devices in the application
+    const topic = `v3/${TTN_CONFIG.applicationId}/devices/+/up`;
 
     // Subscribe to the topic
     mqttClient.subscribe(topic, (err) => {
@@ -121,13 +206,26 @@ function connectToTTN() {
       }
 
       console.log("Subscribed to:", topic);
+      console.log("Listening for messages from all devices in application");
     });
   });
 
   mqttClient.on("message", (topic, message) => {
     try {
       const payload = JSON.parse(message.toString());
+      const deviceId = payload.end_device_ids?.device_id;
+
       console.log("Received message on topic:", topic);
+      console.log("Device ID:", deviceId);
+
+      // Log which device sent the message
+      if (deviceId === TTN_CONFIG.buoyDeviceID) {
+        console.log("Message from BUOY device");
+      } else if (deviceId === TTN_CONFIG.weatherStationDeviceId) {
+        console.log("Message from WEATHER STATION device");
+      } else {
+        console.log("Message from unknown/unconfigured device:", deviceId);
+      }
 
       // Broadcast to all connected WebSocket clients
       wss.clients.forEach((client) => {
@@ -137,6 +235,12 @@ function connectToTTN() {
               type: "message",
               topic: topic,
               payload: payload,
+              deviceType:
+                deviceId === TTN_CONFIG.buoyDeviceID
+                  ? "buoy"
+                  : deviceId === TTN_CONFIG.weatherStationDeviceId
+                  ? "weather"
+                  : "unknown",
             })
           );
         }
@@ -165,8 +269,20 @@ let globalMqttClient = null;
 
 // Start the server
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on https://${HOST}:${PORT}`);
+  console.log("Device Configuration:");
+  console.log(
+    `- Buoy Device ID: ${TTN_CONFIG.buoyDeviceID || "Not configured"}`
+  );
+  console.log(
+    `- Weather Station Device ID: ${
+      TTN_CONFIG.weatherStationDeviceId || "Not configured"
+    }`
+  );
+  console.log(`- Application ID: ${TTN_CONFIG.applicationId}`);
+  console.log(`- Region: ${TTN_CONFIG.region}`);
 
   // Connect to TTN MQTT broker
   globalMqttClient = connectToTTN();
