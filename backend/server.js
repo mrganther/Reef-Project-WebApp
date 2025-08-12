@@ -269,8 +269,9 @@ let globalMqttClient = null;
 
 // Start the server
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || "0.0.0.0";
 server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on https://${HOST}:${PORT}`);
   console.log("Device Configuration:");
   console.log(
     `- Buoy Device ID: ${TTN_CONFIG.buoyDeviceID || "Not configured"}`

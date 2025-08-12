@@ -18,7 +18,7 @@ const StatusIndicator = ({ isConnected, ttnName }) => (
 );
 
 const DeviceHeaderLabel = ({ deviceDisplayName, lastUpdate }) => (
-  <div className="justify-center mb-6 p-4 bg-gray-50 dark:bg-gray-700 transition-colors duration-300 rounded-lg shadow-sm">
+  <div className="justify-center mb-6 p-4 bg-gray-50 dark:bg-gray-800 transition-colors duration-300 rounded-lg shadow-sm">
     <div className="flex justify-between items-center">
       <span className="text-lg font-semibold text-gray-900 dark:text-gray-50 transition-colors duration-300">
         {deviceDisplayName}
@@ -33,7 +33,7 @@ const DeviceHeaderLabel = ({ deviceDisplayName, lastUpdate }) => (
 );
 
 const SensorGauge = ({ value, title, unit, min, max, color, subArcs }) => (
-  <div className="bg-white dark:bg-gray-900 transition-colors duration-300 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
+  <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
     <h3 className="text-lg font-semibold mb-4 text-center dark:text-gray-100 text-gray-800 transition-colors duration-300">
       {title}
     </h3>
@@ -187,7 +187,7 @@ const useWebSocket = () => {
 
   const connectWebSocket = useCallback(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${protocol}//localhost:3000`;
+    const wsUrl = `${protocol}//${window.location.host}`;
 
     console.log(
       `Attempting WebSocket connection (attempt ${
@@ -382,11 +382,11 @@ const SensorDashboard = () => {
     <div>
       <div className="min-h-screen bg-gradient-to-br from-blue-50 flex to-yellow-50 dark:from-gray-950 dark:to-blue-950 transition-colors duration-300 flex-col p-4 pb-16">
         <div className="text-center mb-2 relative">
-          <div className="absolute top-0 right-0 p-2">
+          <div className="absolute top-0 right-0 p-4">
             <DarkModeToggle />
           </div>
           <h2 className="text-2xl font-bold dark:text-gray-100 text-gray-800 transition-colors duration-300 mb-1">
-            Port Philip Bay
+            Port Philip Bay, Holloway bend
           </h2>
           <h1 className="text-5xl font-bold dark:text-gray-100 text-gray-800 transition-colors duration-300 mb-3">
             Reef Monitoring Dashboard
@@ -405,7 +405,7 @@ const SensorDashboard = () => {
           )}
 
           {!isLoadingHistorical && !buoyData && !weatherStationData && (
-            <div className="bg-white dark:bg-black p-8 rounded-lg shadow-md text-center text-gray-500 dark:text-gray-350 mb-8 transition-colors duration-300">
+            <div className="bg-white dark:bg-gray-900 p-8 rounded-lg shadow-md text-center text-gray-500 dark:text-gray-350 mb-8 transition-colors duration-300">
               <div className="text-6xl mb-4">📡</div>
               <p className="text-lg">Waiting for sensor data...</p>
               <p className="text-sm mt-2">
@@ -494,7 +494,7 @@ const SensorDashboard = () => {
           <img src="/images/VicLogoBlue.png" alt="Vic Logo" className="h-16" />
           <img src="/images/RMITUni.png" alt="RMIT" className="h-16" />
           <img
-            src="/images/ScoutsVicLogo.png"
+            src="/images/ScoutsVicFullLogo.svg"
             alt="Scouts Vic"
             className="h-16"
           />
